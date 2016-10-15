@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd">
+    <!--加载properties配置文件-->
+    <bean id="propertyConfigurer" class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+        <property name="locations">
+            <list>
+                <value>/WEB-INF/jdbc.properties</value>
+            </list>
+        </property>
+    </bean>
+
+    <!-- 配置数据源 -->
+    <bean id="dataSource" class="org.apache.commons.dbcp2.BasicDataSource" destroy-method="close">
+        <property name="driverClassName"  value="${jdbc.driverClassName}"></property>
+        <property name="url" value="${jdbc.url}"></property>
+        <property name="username" value="${jdbc.username}"></property>
+        <property name="password" value="${jdbc.password}"></property>
+        <!--<property name="maxActive" value="100"></property>-->
+        <property name="maxIdle" value="30"></property>
+        <!--<property name="maxWait" value="500"></property>-->
+        <property name="defaultAutoCommit" value="true"></property>
+    </bean>
+    <bean id="sessionFactory" class="org.springframework.orm.hibernate5.LocalSessionFactoryBean">
+        <property name="dataSource">
+            <!--<ref local="dataSource"/>-->
+            <ref bean="dataSource"/>
+        </property>
+        <property name="mappingResources">
+            <list>
+                <!-- 此处是加载hibernate的hbm配置文件，用户根据自己hbm文件的路径在下面配置进行加载 -->
+                <!--例如：<value>epicor/bean/Base.hbm.xml</value>-->
+            </list>
+        </property>
+
+        <property name="hibernateProperties">
+            <props>
+                <prop key="hibernate.dialect">org.hibernate.dialect.ProgressDialect</prop>
+                <prop key="hibernate.show_sql">true</prop>
+                <prop key="hibernate.format_sql">true</prop>
+                <prop key="connection.useUnicode">true</prop>
+                <prop key="connection.characterEncoding">utf-8</prop>
+                <prop key="jdbc.fetch_size">50</prop>
+                <prop key="jdbc.batch_size">30</prop>
+                <prop key="hibernate.use_sql_comments">true</prop>
+                <prop key="hibernate.max_fetch_depth">5</prop>
+            </props>
+        </property>
+        <property name="annotatedClasses">
+            <list>
+                <value>com.epicorweb.entity.User</value>
+            </list>
+        </property>
+        <property name="packagesToScan">
+            <list>
+                <value>com.epicorweb.entity</value>
+            </list>
+        </property>
+    </bean>
+    <!--事物处理 -->
+    <bean id="transactionManager" class="org.springframework.orm.hibernate5.HibernateTransactionManager">
+        <property name="sessionFactory">
+            <!--<ref local="sessionFactory" />-->
+            <ref bean="sessionFactory"/>
+        </property>
+    </bean>
+
+    <!--  配置事务传播特性 -->
+    <tx:advice id="TestAdvice" transaction-manager="transactionManager">
+        <tx:attributes>
+            <tx:method name="save*" propagation="REQUIRED"/>
+            <tx:method name="del*" propagation="REQUIRED"/>
+            <tx:method name="update*" propagation="REQUIRED"/>
+            <tx:method name="add*" propagation="REQUIRED"/>
+            <tx:method name="find*" propagation="REQUIRED" read-only="true"/>
+            <tx:method name="get*" propagation="REQUIRED" read-only="true"/>
+            <tx:method name="apply*" propagation="REQUIRED"/>
+            <tx:method name="list*" propagation="REQUIRED"/>
+        </tx:attributes>
+    </tx:advice>
+    <!--  配置参与事务的类 -->
+    <aop:config proxy-target-class="true">
+        <aop:pointcut id="allServiceMethod" expression="execution(* com.epicorweb.services.*.*(..))"/>
+        <aop:advisor pointcut-ref="allServiceMethod" advice-ref="TestAdvice" />
+    </aop:config>
+    <!--&lt;!&ndash;AOP自动事物代理 &ndash;&gt;-->
+    <!--<bean id="transactionInterceptor" class="org.springframework.transaction.interceptor.TransactionInterceptor">-->
+    <!--<property name="transactionManager" ref="transactionManager" />-->
+    <!--<property name="transactionAttributes">-->
+    <!--<props>-->
+    <!--<prop key="insert*">PROPAGATION_REQUIRED</prop>-->
+    <!--<prop key="update*">PROPAGATION_REQUIRED</prop>-->
+    <!--<prop key="delete*">PROPAGATION_REQUIRED</prop>-->
+    <!--<prop key="*">PROPAGATION_REQUIRED</prop>-->
+    <!--</props>-->
+    <!--</property>-->
+    <!--</bean>-->
+    <!--&lt;!&ndash;所有名字以DAO,Service结尾的bean,将由该"bean后处理器"为其创建事务代理 &ndash;&gt;-->
+    <!--<bean class="org.springframework.aop.framework.autoproxy.BeanNameAutoProxyCreator">-->
+        <!--<property name="beanNames">-->
+            <!--<list>-->
+                <!--<value>*Service</value>-->
+                <!--<value>*Dao</value>-->
+            <!--</list>-->
+        <!--</property>-->
+
+        <!--<property name="interceptorNames">-->
+            <!--<list>-->
+                <!--&lt;!&ndash; 此处可增加其他新的Interceptor &ndash;&gt;-->
+                <!--<value>transactionInterceptor</value>-->
+            <!--</list>-->
+        <!--</property>-->
+
+    <!--</bean>-->
+    <!--公共注入dao不要进行改动-->
+    <bean id="bd" class="com.epicorweb.dao.impl.AbstractBaseDaoImpl" scope="singleton">
+        <property name="sessionFactory">
+            <ref bean="sessionFactory" />
+        </property>
+    </bean>
+    <!--基本配置结束-->
+    <!--一个业务模块配置示例-->
+
+    <bean id="userDao" class="com.epicorweb.dao.impl.UserDaoImpl">
+        <property name="sessionFactory">
+            <ref bean="sessionFactory" />
+        </property>
+    </bean>
+    <!--注意：如在action中调用时，action中需要有相应模块service接口实例，并且自定义的实例名称必须跟下面的<bean id=XXXservice>中的XXXservice一致方可-->
+    <bean id="userService" class="com.epicorweb.services.impl.UserServiceImpl">
+        <property name="userDao">
+            <!--<ref local="UserDao" />-->
+            <ref bean="userDao"/>
+        </property>
+        <!--提示：所有模块此处都要注入公共dao才能调用公共方法进行数据库crud操作-->
+        <property name="bd">
+            <!--<ref local="bd" />-->
+            <ref bean="bd"/>
+        </property>
+        <!--提示结束-->
+    </bean>
+
+    <!--配置示例结束-->
+
+
+    <bean id="partDao" class="com.epicorweb.dao.impl.PartDaoImpl" >
+        <property name="sessionFactory">
+            <ref bean="sessionFactory" />
+        </property>
+    </bean>
+    <bean id="partService" class="com.epicorweb.services.impl.PartServiceImpl">
+        <property name="partDao">
+            <ref bean="partDao"/>
+        </property>
+        <!--提示：所有模块此处都要注入公共dao才能调用公共方法进行数据库crud操作-->
+        <property name="bd">
+            <ref bean="bd"/>
+        </property>
+    </bean>
+
+
+
+</beans>
